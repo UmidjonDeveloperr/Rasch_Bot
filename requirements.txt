@@ -2,3 +2,5 @@ aiogram
 python-dotenv
 pandas
 sympy
+pydantic
+asyncpg
