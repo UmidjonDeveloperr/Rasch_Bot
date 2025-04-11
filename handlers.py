@@ -113,10 +113,10 @@ async def start_command(message: types.Message):
 
         photo = FSInputFile(photo_path)
         if is_admin(message.from_user.id):
-            caption = "Assalomu alaykum, Admin!\n\nTest javoblarini yuborish uchun quyidagi '📝 Test ishlash' tugmasini bosing:\n\n❗️❗️❗️ Eslatib o'tamiz bot hozir test rejimida ishlayapti. Xato va kamchiliklar uchun oldindan uzr so'raymiz.❗️❗️❗"
+            caption = "Assalomu alaykum, Admin!\n\nQuyidagi tugmalarda foydalaning:"
             reply_markup = get_admin_keyboard()
         else:
-            caption = "Assalomu alaykum!\n\nTest ishlash uchun quyidagi tugmani bosing:"
+            caption = "Assalomu alaykum!\n\nTest javoblarini yuborish uchun quyidagi '📝 Test ishlash' tugmasini bosing:\n\n❗️❗️❗️ Eslatib o'tamiz bot hozir test rejimida ishlayapti. Xato va kamchiliklar uchun oldindan uzr so'raymiz.❗️❗️❗"
             reply_markup = get_user_keyboard()
 
         await message.answer_photo(photo=photo, caption=caption, reply_markup=reply_markup)
