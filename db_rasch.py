@@ -356,7 +356,7 @@ class TestManager:
         Create a table for storing user answers for a specific test if it doesn't exist
         Returns True if table exists or was created successfully
         """
-        table_name = f"test_{test_id}_answers"
+        table_name = f"test_{test_id.lower()}_answers"
         pool = await Database.get_pool()
         try:
             async with pool.acquire() as conn:
@@ -406,7 +406,7 @@ class TestManager:
         Automatically handles existing tables
         Returns True if successful
         """
-        table_name = f"test_{test_id}_answers"
+        table_name = f"test_{test_id.lower()}_answers"
         pool = await Database.get_pool()
         try:
             async with pool.acquire() as conn:
@@ -460,7 +460,7 @@ class TestManager:
         Get a specific user's test data from the test answers table
         Returns None if user not found
         """
-        table_name = f"test_{test_id}_answers"
+        table_name = f"test_{test_id.lower()}_answers"
         pool = await Database.get_pool()
         try:
             async with pool.acquire() as conn:
@@ -506,7 +506,7 @@ class TestManager:
         Get all users' data from a specific test answers table
         Returns empty list if table doesn't exist
         """
-        table_name = f"test_{test_id}_answers"
+        table_name = f"test_{test_id.lower()}_answers"
         pool = await Database.get_pool()
         try:
             async with pool.acquire() as conn:
@@ -551,7 +551,7 @@ class TestManager:
         Returns True if table was deleted or didn't exist
         Returns False if deletion failed
         """
-        table_name = f"test_{test_id}_answers"
+        table_name = f"test_{test_id.lower()}_answers"
         pool = await Database.get_pool()
         try:
             async with pool.acquire() as conn:
