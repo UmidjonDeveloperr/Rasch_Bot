@@ -1135,7 +1135,6 @@ async def submit_answers(callback: CallbackQuery, state: FSMContext):
             # Prepare and send results
             results = [
                 f"{i + 1}. {user_answers[i] if i < len(user_answers) else ''} "
-                f"{'✅' if i < len(user_answers) and i < len(correct_answers_1_35) and str(user_answers[i]).upper() == str(correct_answers_1_35[i]).upper() else '❌'} "
                 for i in range(35)
             ]
 
