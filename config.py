@@ -14,34 +14,34 @@ class Config:
     ADMIN_ID: int = int(os.getenv("ADMIN_ID", "0"))  # Default to 0 if not set
 
     # Database configuration - using your password
-    DATABASE_URL: str = os.getenv(
-        "DATABASE_URL",
-        "postgresql://postgres:UNujKLBAAGIFskpCjWCjCMpVDDaURvnc@postgres.railway.internal:5432/railway"
-    )
+    DATABASE_URL: str = os.getenv("DATABASE_URL")
 
     @staticmethod
     def get_db_config() -> Dict[str, Any]:
         """Parse DATABASE_URL into asyncpg-compatible configuration"""
         if Config.DATABASE_URL.startswith("postgresql"):
-            # Parse PostgreSQL URL
             from urllib.parse import urlparse
             url = urlparse(Config.DATABASE_URL)
 
+            # Ensure all parts are properly set
+            if not all([url.hostname, url.username, url.password, url.path]):
+                raise ValueError("Invalid DATABASE_URL format")
+
             return {
-                'user': url.username or 'postgres',
-                'password': url.password or 'UNujKLBAAGIFskpCjWCjCMpVDDaURvnc',
-                'database': url.path[1:] if url.path else 'railway',
-                'host': url.hostname or 'postgres.railway.internal',
+                'user': url.username,
+                'password': url.password,
+                'database': url.path[1:],  # Remove leading slash
+                'host': url.hostname,
                 'port': url.port or 5432
             }
         else:
-            # Fallback configuration
+            # Fallback configuration with your Railway credentials
             return {
-                'user': os.getenv("DB_USER", "postgres"),
-                'password': os.getenv("DB_PASSWORD", "UNujKLBAAGIFskpCjWCjCMpVDDaURvnc"),
-                'database': os.getenv("DB_NAME", "railway"),
-                'host': os.getenv("DB_HOST", "postgres.railway.internal"),
-                'port': int(os.getenv("DB_PORT", "5432"))
+                'user': "postgres",
+                'password': "UNujKLBAAGIFskpCjWCjCMpVDDaURvnc",
+                'database': "railway",
+                'host': "monorail.proxy.rlwy.net",  # Use external hostname
+                'port': 12345  # Use your actual external port
             }
 
 ADMIN_ID = Config.ADMIN_ID
