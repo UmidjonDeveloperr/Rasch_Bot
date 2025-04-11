@@ -113,7 +113,7 @@ async def start_command(message: types.Message):
 
         photo = FSInputFile(photo_path)
         if is_admin(message.from_user.id):
-            caption = "Assalomu alaykum, Admin!\n\nQuyidagi tugmalardan foydalaning:"
+            caption = "Assalomu alaykum, Admin!\n\nTest javoblarini yuborish uchun quyidagi '📝 Test ishlash' tugmasini bosing:\n\n❗️❗️❗️ Eslatib o'tamiz bot hozir test rejimida ishlayapti. Xato va kamchiliklar uchun oldindan uzr so'raymiz.❗️❗️❗"
             reply_markup = get_admin_keyboard()
         else:
             caption = "Assalomu alaykum!\n\nTest ishlash uchun quyidagi tugmani bosing:"
@@ -1123,13 +1123,21 @@ async def submit_answers(callback: CallbackQuery, state: FSMContext):
         else:
             saved = False
 
-        # Prepare and send results
-        results = [
-            f"{i + 1}. {user_answers[i] if i < len(user_answers) else ''} "
-            f"{'✅' if i < len(user_answers) and i < len(correct_answers_1_35) and str(user_answers[i]).upper() == str(correct_answers_1_35[i]).upper() else '❌'} "
-            f"To'g'ri: {correct_answers_1_35[i] if i < len(correct_answers_1_35) else '?'}"
-            for i in range(35)
-        ]
+        if not is_test_active:
+            # Prepare and send results
+            results = [
+                f"{i + 1}. {user_answers[i] if i < len(user_answers) else ''} "
+                f"{'✅' if i < len(user_answers) and i < len(correct_answers_1_35) and str(user_answers[i]).upper() == str(correct_answers_1_35[i]).upper() else '❌'} "
+                f"To'g'ri: {correct_answers_1_35[i] if i < len(correct_answers_1_35) else '?'}"
+                for i in range(35)
+            ]
+        else:
+            # Prepare and send results
+            results = [
+                f"{i + 1}. {user_answers[i] if i < len(user_answers) else ''} "
+                f"{'✅' if i < len(user_answers) and i < len(correct_answers_1_35) and str(user_answers[i]).upper() == str(correct_answers_1_35[i]).upper() else '❌'} "
+                for i in range(35)
+            ]
 
         # Send in chunks
         chunk_size = 10
