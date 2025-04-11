@@ -4,3 +4,4 @@ pandas
 sympy
 pydantic
 asyncpg
+XlsxWriter
