@@ -1,3 +1,5 @@
+import os
+
 import asyncpg
 from aiogram.types.input_file import BufferedInputFile
 from asyncpg.pool import Pool
@@ -20,6 +22,7 @@ class Database:
         """Initialize and return a connection pool"""
         if not cls._pool:
             try:
+                ssl_mode = 'require' if os.getenv('RAILWAY_ENVIRONMENT') else None
                 cls._pool = await asyncpg.create_pool(
                     **DB_CONFIG,
                     min_size=5,

@@ -16,7 +16,7 @@ class Config:
     # Database configuration - using your password
     DATABASE_URL: str = os.getenv(
         "DATABASE_URL",
-        "postgresql://rasch_bot_user:raschdb_2005@localhost:5432/rasch_bot_db"
+        "postgresql://postgres:UNujKLBAAGIFskpCjWCjCMpVDDaURvnc@postgres.railway.internal:5432/railway"
     )
 
     @staticmethod
@@ -28,19 +28,19 @@ class Config:
             url = urlparse(Config.DATABASE_URL)
 
             return {
-                'user': url.username or 'rasch_bot_user',
-                'password': url.password or 'raschdb_2005',
-                'database': url.path[1:] if url.path else 'rasch_bot_db',
-                'host': url.hostname or 'localhost',
+                'user': url.username or 'postgres',
+                'password': url.password or 'UNujKLBAAGIFskpCjWCjCMpVDDaURvnc',
+                'database': url.path[1:] if url.path else 'railway',
+                'host': url.hostname or 'postgres.railway.internal',
                 'port': url.port or 5432
             }
         else:
             # Fallback configuration
             return {
-                'user': os.getenv("DB_USER", "rasch_bot_user"),
-                'password': os.getenv("DB_PASSWORD", "raschdb_2005"),
-                'database': os.getenv("DB_NAME", "rasch_bot_db"),
-                'host': os.getenv("DB_HOST", "localhost"),
+                'user': os.getenv("DB_USER", "postgres"),
+                'password': os.getenv("DB_PASSWORD", "UNujKLBAAGIFskpCjWCjCMpVDDaURvnc"),
+                'database': os.getenv("DB_NAME", "railway"),
+                'host': os.getenv("DB_HOST", "postgres.railway.internal"),
                 'port': int(os.getenv("DB_PORT", "5432"))
             }
 
