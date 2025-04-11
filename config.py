@@ -11,8 +11,8 @@ class Config:
 
     # Bot configuration
     BOT_TOKEN: str = os.getenv("BOT_TOKEN", "")
-    ADMIN_ID: int = int(os.getenv("ADMIN_ID", "0"))  # Default to 0 if not set
-
+    #ADMIN_ID: int = int(os.getenv("ADMIN_ID", "0"))  # Default to 0 if not set
+    ADMIN_IDS: list = [int(admin_id.strip()) for admin_id in os.getenv("ADMIN_IDS", "").split(',') if admin_id.strip().isdigit()]
     # Database configuration - using your password
     DATABASE_URL: str = os.getenv("DATABASE_URL")
 
@@ -44,7 +44,7 @@ class Config:
                 'port': 12345  # Use your actual external port
             }
 
-ADMIN_ID = Config.ADMIN_ID
+ADMIN_IDS = Config.ADMIN_IDS
 BOT_TOKEN = Config.BOT_TOKEN
 DB_CONFIG = Config.get_db_config()
 

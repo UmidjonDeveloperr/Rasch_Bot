@@ -34,7 +34,7 @@ from sympy.physics.units import current
 from db_rasch import TestManager  # Your database operations
 from config import Config  # For configuration
 from datetime import datetime
-from config import ADMIN_ID
+from config import ADMIN_IDS
 import logging
 
 router = Router()
@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 
 
 def is_admin(user_id: int):
-    return user_id == ADMIN_ID
+    return user_id in ADMIN_IDS
 
 
 class TestStates(StatesGroup):
