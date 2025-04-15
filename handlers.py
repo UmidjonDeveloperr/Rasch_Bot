@@ -221,11 +221,11 @@ async def receive_single_test(message: Message, state: FSMContext):
         answers = answers.strip()
 
         parts = answers.split()
-        #
-        # # Validate answers format
-        # parts = answers.split(';')
-        # if len(parts) != 21:  # 35 letters + 20 math answers
-        #     raise ValueError("Noto'g'ri javoblar formati. 35 ta harf va 20 ta matematik javob bo'lishi kerak")
+
+        # Validate answers format
+        parts = answers.split(';')
+        if len(parts) != 21:  # 35 letters + 20 math answers
+            raise ValueError("Noto'g'ri javoblar formati. 35 ta harf va 20 ta matematik javob bo'lishi kerak")
 
 
 
@@ -861,334 +861,342 @@ async def process_export(message: Message, state: FSMContext):
 
 
 #####---------------------------USER--------------------------------------------
-
-# Start test handler
+#start handler
 @router.message(F.text == "📝 Test ishlash")
 async def start_test(message: Message, state: FSMContext):
-    await state.set_state(TestTakingStates.waiting_for_test_id)
-    await message.answer(
-        "Test ID sini yuboring:",
-        reply_markup=types.ReplyKeyboardRemove()
-    )
+    telegram_id = message.from_user.id
+    url = f"https://flashy-diligent-streetcar.glitch.me/math.html?telegram_id={telegram_id}"
 
-#process test id
-@router.message(TestTakingStates.waiting_for_test_id, F.text)
-async def process_test_id(message: Message, state: FSMContext):
-    test_id = message.text.strip()
-
-    # Get test data from database
-    test = await TestManager.get_test(test_id)
-    if not test:
-        await message.answer(
-            "❌ Bu test bazada topilmadi!",
-            reply_markup=get_user_keyboard()
-        )
-        await state.clear()
-        return
-
-    # Store test ID and initialize test data
-    await state.update_data(
-        test_id=test_id,
-        user_answers=[''] * 35,
-        current_question=0
-    )
-
-    # Start collecting user data
-    await state.set_state(TestTakingStates.waiting_for_first_name_data)
-    await message.answer(
-        "Ismingizni kiriting:",
-        reply_markup=types.ReplyKeyboardRemove()
-    )
-
-
-# Collect first name
-@router.message(TestTakingStates.waiting_for_first_name_data, F.text)
-async def process_first_name(message: Message, state: FSMContext):
-    first_name = message.text.strip()
-    await state.update_data(first_name=first_name)
-    await state.set_state(TestTakingStates.waiting_for_second_name_data)
-    await message.answer(
-        "Familyangizni kiriting:",
-        reply_markup=types.ReplyKeyboardRemove()
-    )
-
-
-# Collect second name
-@router.message(TestTakingStates.waiting_for_second_name_data, F.text)
-async def process_second_name(message: Message, state: FSMContext):
-    second_name = message.text.strip()
-    await state.update_data(second_name=second_name)
-    await state.set_state(TestTakingStates.waiting_for_third_name_data)
-    await message.answer(
-        "Otangizning ismini kiriting:\n\nMisol: Anvar o'g'li (qizi):",
-        reply_markup=types.ReplyKeyboardRemove()
-    )
-
-
-# Collect third name (patronymic)
-@router.message(TestTakingStates.waiting_for_third_name_data, F.text)
-async def process_third_name(message: Message, state: FSMContext):
-    third_name = message.text.strip()
-    await state.update_data(third_name=third_name)
-    await state.set_state(TestTakingStates.waiting_for_region_data)
-    await message.answer(
-        "Viloyat yoki tumaningizni kiriting:",
-        reply_markup=types.ReplyKeyboardRemove()
-    )
-
-
-# Collect region and start the test
-@router.message(TestTakingStates.waiting_for_region_data, F.text)
-async def process_region(message: Message, state: FSMContext):
-    region = message.text.strip()
-    await state.update_data(region=region)
-
-    # All user data collected, now start the test
-    await ask_question(message, state)
-
-
-# Display current question
-async def ask_question(update: Union[Message, CallbackQuery], state: FSMContext):
-    await state.set_state(TestTakingStates.answering_questions)
-
-    data = await state.get_data()
-    question_num = data.get("current_question", 0)
-    # Create appropriate keyboard based on question type
-    if question_num < 32:  # Questions 1-32 (A-D)
-        keyboard = [
-            [InlineKeyboardButton(text="A", callback_data="answer:A"),
-             InlineKeyboardButton(text="B", callback_data="answer:B")],
-             [InlineKeyboardButton(text="C", callback_data="answer:C"),
-             InlineKeyboardButton(text="D", callback_data="answer:D")]
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Testni boshlash", url=url)]
         ]
-    elif question_num < 35:  # Questions 33-35 (A-F)
-        keyboard = [
-            [InlineKeyboardButton(text="A", callback_data="answer:A"),
-             InlineKeyboardButton(text="B", callback_data="answer:B"),
-             InlineKeyboardButton(text="C", callback_data="answer:C")],
-            [InlineKeyboardButton(text="D", callback_data="answer:D"),
-             InlineKeyboardButton(text="E", callback_data="answer:E"),
-             InlineKeyboardButton(text="F", callback_data="answer:F")]
-        ]
-
-    # # Add navigation buttons
-    nav_buttons = []
-    if question_num > 0:
-        nav_buttons.append(InlineKeyboardButton(text="◀️ Orqaga", callback_data="prev_question"))
-    if question_num < 34:          #--------------------------------------
-        nav_buttons.append(InlineKeyboardButton(text="➡️ O'tkazish", callback_data="skip_question"))
-    if nav_buttons:
-        keyboard.append(nav_buttons)
-
-    text = f"Savol {question_num + 1}/35: Marhamat quyidagilardan birini tanlang!\n"
-
-    reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
-
-    if isinstance(update, CallbackQuery):
-        await update.message.edit_text(text, reply_markup=reply_markup)
-    elif isinstance(update, Message):
-        await update.answer(text, reply_markup=reply_markup)
-
-
-# Handle single answer (A-F)
-@router.callback_query(
-    TestTakingStates.answering_questions,
-    F.data.startswith("answer:")
-)
-async def handle_single_answer(callback: CallbackQuery, state: FSMContext):
-    try:
-        answer = callback.data.split(":")[1]
-        data = await state.get_data()
-        question_num = data['current_question']
-
-        user_answers = data['user_answers']
-        user_answers[question_num] = answer
-        await state.update_data(user_answers=user_answers)
-
-        await next_question(callback, state)
-        await callback.answer()
-    except Exception as e:
-        await callback.message.answer(f"Xatolik yuz berdi: {str(e)}")
-        await callback.answer()
-
-
-# Previous question
-@router.callback_query(F.data == "prev_question")
-async def prev_question(callback: CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    question_num = data['current_question']
-
-    if question_num > 0:
-        await state.update_data(current_question=question_num - 1)
-        await state.set_state(TestTakingStates.answering_questions)
-        await ask_question(callback, state)
-
-    await callback.answer()
-
-
-# Skip question
-@router.callback_query(F.data == "skip_question")
-async def skip_question(callback: CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    question_num = data['current_question']
-
-    if question_num < 34:
-        await state.update_data(current_question=question_num + 1)
-        await state.set_state(TestTakingStates.answering_questions)
-        await ask_question(callback, state)
-
-    await callback.answer()
-
-
-# Move to next question
-async def next_question(update: Union[Message, CallbackQuery], state: FSMContext):
-    data = await state.get_data()
-    question_num = data['current_question'] + 1
-
-    if question_num >= 35:
-        await state.set_state(TestTakingStates.ready_to_submit)
-
-        keyboard = [
-            [InlineKeyboardButton(text="✅ Javoblarni tekshirish", callback_data="submit_answers")],
-            [InlineKeyboardButton(text="🔄 Qayta ishlash", callback_data="restart_test")]
-        ]
-        reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
-
-        text = "Barcha javoblarni kiritdingiz!\nInternetga ulanganda «Javoblarni tekshirish» tugmasini bosing."
-
-        if isinstance(update, CallbackQuery):
-            await update.message.edit_text(text, reply_markup=reply_markup)
-        else:
-            await update.answer(text, reply_markup=reply_markup)
-        return
-
-    await state.update_data(current_question=question_num)
-    await state.set_state(TestTakingStates.answering_questions)
-    await ask_question(update, state)
-
-
-
-#submit_answers
-@router.callback_query(TestTakingStates.ready_to_submit, F.data == "submit_answers")
-async def submit_answers(callback: CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    test_id = data['test_id'].strip()
-    user_id = callback.from_user.id
-    user_data = {
-        'first_name': data.get('first_name', ''),
-        'second_name': data.get('second_name', ''),
-        'third_name': data.get('third_name', ''),
-        'region': data.get('region', '')
-    }
-    user_answers = data['user_answers']
-
-    try:
-        # Get test data from database
-        test = await TestManager.get_test(test_id)
-        if not test:
-            await callback.message.answer(
-                "❌ Bu test bazada topilmadi!",
-                reply_markup=get_user_keyboard()
-            )
-            await state.clear()
-            return
-
-        # Calculate results
-        correct_answers_1_35 = test['answers_1_35']
-        correct_count = sum(
-            1 for i in range(35)
-            if i < len(user_answers) and
-            i < len(correct_answers_1_35) and
-            str(user_answers[i]).upper() == str(correct_answers_1_35[i]).upper()
-        )
-        score = round((correct_count / 35) * 100, 2)
-
-        # Check if user already submitted answers
-        existing_submission = await TestManager.get_test_user_data(test_id, user_id)
-        is_test_active = test.get('status', 'inactive') == 'active'
-
-        # Only save if test is active AND no existing submission
-        if is_test_active:
-            if existing_submission:
-                # User already submitted - don't save again
-                saved = False
-            else:
-                # First time submission - save answers
-                saved = await TestManager.save_user_answers(
-                    test_id=test_id,
-                    user_id=user_id,
-                    user_data=user_data,
-                    answers=user_answers
-                )
-        else:
-            saved = False
-
-        if not is_test_active:
-            # Prepare and send results
-            results = [
-                f"{i + 1}. {user_answers[i] if i < len(user_answers) else ''} "
-                f"{'✅' if i < len(user_answers) and i < len(correct_answers_1_35) and str(user_answers[i]).upper() == str(correct_answers_1_35[i]).upper() else '❌'} "
-                f"To'g'ri: {correct_answers_1_35[i] if i < len(correct_answers_1_35) else '?'}"
-                for i in range(35)
-            ]
-        else:
-            # Prepare and send results
-            results = [
-                f"{i + 1}. {user_answers[i] if i < len(user_answers) else ''} "
-                for i in range(35)
-            ]
-
-        # Send in chunks
-        chunk_size = 10
-        for i in range(0, len(results), chunk_size):
-            await callback.message.answer("\n".join(results[i:i + chunk_size]))
-
-        # Final message
-        message = (
-            f"📊 Test: {test_id}\n"
-            f"👤 Foydalanuvchi: {user_data['first_name']} {user_data['second_name']}\n"
-            f"✅ To'g'ri: {correct_count}/35\n"
-            f"📈 {score}%\n"
-        )
-
-        if existing_submission:
-            message += "ℹ️ Siz allaqachon bu testda qatnashgansiz! Javoblaringiz yangilanmadi."
-        elif is_test_active and saved:
-            message += "✅ Javoblaringiz saqlandi!"
-        elif is_test_active and not saved:
-            message += "❌ Javoblarni saqlashda xatolik!"
-        else:
-            message += "ℹ️ Test yakunlangan, javoblaringiz saqlanmadi"
-
-        await callback.message.answer(message, reply_markup=get_user_keyboard())
-
-    except Exception as e:
-        logger.error(f"Error submitting answers: {str(e)}")
-        await callback.message.answer(
-            "❌ Javoblarni tekshirishda xatolik yuz berdi. Iltimos, keyinroq urinib ko'ring.",
-            reply_markup=get_user_keyboard()
-        )
-    finally:
-        await state.clear()
-
-# Restart test
-@router.callback_query(F.data == "restart_test")
-async def restart_test(callback: CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    await state.update_data(current_question=0, user_answers=[''] * 35)
-    await state.set_state(TestTakingStates.answering_questions)
-    await ask_question(callback, state)
-    await callback.answer()
-
-
-# Helper function to get user keyboard
-def get_user_keyboard():
-    return types.ReplyKeyboardMarkup(
-        keyboard=[
-            [types.KeyboardButton(text="📝 Test ishlash")]
-        ],
-        resize_keyboard=True
     )
+
+    await message.answer("Testni shu yerda boshlang:", reply_markup=keyboard)
+
+
+
+#
+# #process test id
+# @router.message(TestTakingStates.waiting_for_test_id, F.text)
+# async def process_test_id(message: Message, state: FSMContext):
+#     test_id = message.text.strip()
+#
+#     # Get test data from database
+#     test = await TestManager.get_test(test_id)
+#     if not test:
+#         await message.answer(
+#             "❌ Bu test bazada topilmadi!",
+#             reply_markup=get_user_keyboard()
+#         )
+#         await state.clear()
+#         return
+#
+#     # Store test ID and initialize test data
+#     await state.update_data(
+#         test_id=test_id,
+#         user_answers=[''] * 35,
+#         current_question=0
+#     )
+#
+#     # Start collecting user data
+#     await state.set_state(TestTakingStates.waiting_for_first_name_data)
+#     await message.answer(
+#         "Ismingizni kiriting:",
+#         reply_markup=types.ReplyKeyboardRemove()
+#     )
+#
+#
+# # Collect first name
+# @router.message(TestTakingStates.waiting_for_first_name_data, F.text)
+# async def process_first_name(message: Message, state: FSMContext):
+#     first_name = message.text.strip()
+#     await state.update_data(first_name=first_name)
+#     await state.set_state(TestTakingStates.waiting_for_second_name_data)
+#     await message.answer(
+#         "Familyangizni kiriting:",
+#         reply_markup=types.ReplyKeyboardRemove()
+#     )
+#
+#
+# # Collect second name
+# @router.message(TestTakingStates.waiting_for_second_name_data, F.text)
+# async def process_second_name(message: Message, state: FSMContext):
+#     second_name = message.text.strip()
+#     await state.update_data(second_name=second_name)
+#     await state.set_state(TestTakingStates.waiting_for_third_name_data)
+#     await message.answer(
+#         "Otangizning ismini kiriting:\n\nMisol: Anvar o'g'li (qizi):",
+#         reply_markup=types.ReplyKeyboardRemove()
+#     )
+#
+#
+# # Collect third name (patronymic)
+# @router.message(TestTakingStates.waiting_for_third_name_data, F.text)
+# async def process_third_name(message: Message, state: FSMContext):
+#     third_name = message.text.strip()
+#     await state.update_data(third_name=third_name)
+#     await state.set_state(TestTakingStates.waiting_for_region_data)
+#     await message.answer(
+#         "Viloyat yoki tumaningizni kiriting:",
+#         reply_markup=types.ReplyKeyboardRemove()
+#     )
+#
+#
+# # Collect region and start the test
+# @router.message(TestTakingStates.waiting_for_region_data, F.text)
+# async def process_region(message: Message, state: FSMContext):
+#     region = message.text.strip()
+#     await state.update_data(region=region)
+#
+#     # All user data collected, now start the test
+#     await ask_question(message, state)
+#
+#
+#
+# # Display current question
+# async def ask_question(update: Union[Message, CallbackQuery], state: FSMContext):
+#     await state.set_state(TestTakingStates.answering_questions)
+#
+#     data = await state.get_data()
+#     question_num = data.get("current_question", 0)
+#     # Create appropriate keyboard based on question type
+#     if question_num < 32:  # Questions 1-32 (A-D)
+#         keyboard = [
+#             [InlineKeyboardButton(text="A", callback_data="answer:A"),
+#              InlineKeyboardButton(text="B", callback_data="answer:B")],
+#              [InlineKeyboardButton(text="C", callback_data="answer:C"),
+#              InlineKeyboardButton(text="D", callback_data="answer:D")]
+#         ]
+#     elif question_num < 35:  # Questions 33-35 (A-F)
+#         keyboard = [
+#             [InlineKeyboardButton(text="A", callback_data="answer:A"),
+#              InlineKeyboardButton(text="B", callback_data="answer:B"),
+#              InlineKeyboardButton(text="C", callback_data="answer:C")],
+#             [InlineKeyboardButton(text="D", callback_data="answer:D"),
+#              InlineKeyboardButton(text="E", callback_data="answer:E"),
+#              InlineKeyboardButton(text="F", callback_data="answer:F")]
+#         ]
+#
+#     # # Add navigation buttons
+#     nav_buttons = []
+#     if question_num > 0:
+#         nav_buttons.append(InlineKeyboardButton(text="◀️ Orqaga", callback_data="prev_question"))
+#     if question_num < 34:          #--------------------------------------
+#         nav_buttons.append(InlineKeyboardButton(text="➡️ O'tkazish", callback_data="skip_question"))
+#     if nav_buttons:
+#         keyboard.append(nav_buttons)
+#
+#     text = f"Savol {question_num + 1}/35: Marhamat quyidagilardan birini tanlang!\n"
+#
+#     reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+#
+#     if isinstance(update, CallbackQuery):
+#         await update.message.edit_text(text, reply_markup=reply_markup)
+#     elif isinstance(update, Message):
+#         await update.answer(text, reply_markup=reply_markup)
+#
+#
+# # Handle single answer (A-F)
+# @router.callback_query(
+#     TestTakingStates.answering_questions,
+#     F.data.startswith("answer:")
+# )
+# async def handle_single_answer(callback: CallbackQuery, state: FSMContext):
+#     try:
+#         answer = callback.data.split(":")[1]
+#         data = await state.get_data()
+#         question_num = data['current_question']
+#
+#         user_answers = data['user_answers']
+#         user_answers[question_num] = answer
+#         await state.update_data(user_answers=user_answers)
+#
+#         await next_question(callback, state)
+#         await callback.answer()
+#     except Exception as e:
+#         await callback.message.answer(f"Xatolik yuz berdi: {str(e)}")
+#         await callback.answer()
+#
+#
+# # Previous question
+# @router.callback_query(F.data == "prev_question")
+# async def prev_question(callback: CallbackQuery, state: FSMContext):
+#     data = await state.get_data()
+#     question_num = data['current_question']
+#
+#     if question_num > 0:
+#         await state.update_data(current_question=question_num - 1)
+#         await state.set_state(TestTakingStates.answering_questions)
+#         await ask_question(callback, state)
+#
+#     await callback.answer()
+#
+#
+# # Skip question
+# @router.callback_query(F.data == "skip_question")
+# async def skip_question(callback: CallbackQuery, state: FSMContext):
+#     data = await state.get_data()
+#     question_num = data['current_question']
+#
+#     if question_num < 34:
+#         await state.update_data(current_question=question_num + 1)
+#         await state.set_state(TestTakingStates.answering_questions)
+#         await ask_question(callback, state)
+#
+#     await callback.answer()
+#
+#
+# # Move to next question
+# async def next_question(update: Union[Message, CallbackQuery], state: FSMContext):
+#     data = await state.get_data()
+#     question_num = data['current_question'] + 1
+#
+#     if question_num >= 35:
+#         await state.set_state(TestTakingStates.ready_to_submit)
+#
+#         keyboard = [
+#             [InlineKeyboardButton(text="✅ Javoblarni tekshirish", callback_data="submit_answers")],
+#             [InlineKeyboardButton(text="🔄 Qayta ishlash", callback_data="restart_test")]
+#         ]
+#         reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+#
+#         text = "Barcha javoblarni kiritdingiz!\nInternetga ulanganda «Javoblarni tekshirish» tugmasini bosing."
+#
+#         if isinstance(update, CallbackQuery):
+#             await update.message.edit_text(text, reply_markup=reply_markup)
+#         else:
+#             await update.answer(text, reply_markup=reply_markup)
+#         return
+#
+#     await state.update_data(current_question=question_num)
+#     await state.set_state(TestTakingStates.answering_questions)
+#     await ask_question(update, state)
+#
+#
+#
+# #submit_answers
+# @router.callback_query(TestTakingStates.ready_to_submit, F.data == "submit_answers")
+# async def submit_answers(callback: CallbackQuery, state: FSMContext):
+#     data = await state.get_data()
+#     test_id = data['test_id'].strip()
+#     user_id = callback.from_user.id
+#     user_data = {
+#         'first_name': data.get('first_name', ''),
+#         'second_name': data.get('second_name', ''),
+#         'third_name': data.get('third_name', ''),
+#         'region': data.get('region', '')
+#     }
+#     user_answers = data['user_answers']
+#
+#     try:
+#         # Get test data from database
+#         test = await TestManager.get_test(test_id)
+#         if not test:
+#             await callback.message.answer(
+#                 "❌ Bu test bazada topilmadi!",
+#                 reply_markup=get_user_keyboard()
+#             )
+#             await state.clear()
+#             return
+#
+#         # Calculate results
+#         correct_answers_1_35 = test['answers_1_35']
+#         correct_count = sum(
+#             1 for i in range(35)
+#             if i < len(user_answers) and
+#             i < len(correct_answers_1_35) and
+#             str(user_answers[i]).upper() == str(correct_answers_1_35[i]).upper()
+#         )
+#         score = round((correct_count / 35) * 100, 2)
+#
+#         # Check if user already submitted answers
+#         existing_submission = await TestManager.get_test_user_data(test_id, user_id)
+#         is_test_active = test.get('status', 'inactive') == 'active'
+#
+#         # Only save if test is active AND no existing submission
+#         if is_test_active:
+#             if existing_submission:
+#                 # User already submitted - don't save again
+#                 saved = False
+#             else:
+#                 # First time submission - save answers
+#                 saved = await TestManager.save_user_answers(
+#                     test_id=test_id,
+#                     user_id=user_id,
+#                     user_data=user_data,
+#                     answers=user_answers
+#                 )
+#         else:
+#             saved = False
+#
+#         if not is_test_active:
+#             # Prepare and send results
+#             results = [
+#                 f"{i + 1}. {user_answers[i] if i < len(user_answers) else ''} "
+#                 f"{'✅' if i < len(user_answers) and i < len(correct_answers_1_35) and str(user_answers[i]).upper() == str(correct_answers_1_35[i]).upper() else '❌'} "
+#                 f"To'g'ri: {correct_answers_1_35[i] if i < len(correct_answers_1_35) else '?'}"
+#                 for i in range(35)
+#             ]
+#         else:
+#             # Prepare and send results
+#             results = [
+#                 f"{i + 1}. {user_answers[i] if i < len(user_answers) else ''} "
+#                 for i in range(35)
+#             ]
+#
+#         # Send in chunks
+#         chunk_size = 10
+#         for i in range(0, len(results), chunk_size):
+#             await callback.message.answer("\n".join(results[i:i + chunk_size]))
+#
+#         # Final message
+#         message = (
+#             f"📊 Test: {test_id}\n"
+#             f"👤 Foydalanuvchi: {user_data['first_name']} {user_data['second_name']}\n"
+#             f"✅ To'g'ri: {correct_count}/35\n"
+#             f"📈 {score}%\n"
+#         )
+#
+#         if existing_submission:
+#             message += "ℹ️ Siz allaqachon bu testda qatnashgansiz! Javoblaringiz yangilanmadi."
+#         elif is_test_active and saved:
+#             message += "✅ Javoblaringiz saqlandi!"
+#         elif is_test_active and not saved:
+#             message += "❌ Javoblarni saqlashda xatolik!"
+#         else:
+#             message += "ℹ️ Test yakunlangan, javoblaringiz saqlanmadi"
+#
+#         await callback.message.answer(message, reply_markup=get_user_keyboard())
+#
+#     except Exception as e:
+#         logger.error(f"Error submitting answers: {str(e)}")
+#         await callback.message.answer(
+#             "❌ Javoblarni tekshirishda xatolik yuz berdi. Iltimos, keyinroq urinib ko'ring.",
+#             reply_markup=get_user_keyboard()
+#         )
+#     finally:
+#         await state.clear()
+#
+# # Restart test
+# @router.callback_query(F.data == "restart_test")
+# async def restart_test(callback: CallbackQuery, state: FSMContext):
+#     data = await state.get_data()
+#     await state.update_data(current_question=0, user_answers=[''] * 35)
+#     await state.set_state(TestTakingStates.answering_questions)
+#     await ask_question(callback, state)
+#     await callback.answer()
+#
+#
+# # Helper function to get user keyboard
+# def get_user_keyboard():
+#     return types.ReplyKeyboardMarkup(
+#         keyboard=[
+#             [types.KeyboardButton(text="📝 Test ishlash")]
+#         ],
+#         resize_keyboard=True
+#     )
 
 
 

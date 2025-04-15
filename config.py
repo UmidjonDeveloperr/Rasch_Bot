@@ -55,7 +55,7 @@ if not Config.BOT_TOKEN:
 if __name__ == "__main__":
     print("=== Configuration Verification ===")
     print(f"Bot token: {'*****' if Config.BOT_TOKEN else 'Not set'}")
-    print(f"Admin ID: {Config.ADMIN_ID}")
+    print(f"Admin ID: {Config.ADMIN_IDS}")
     print(f"Database URL: {Config.DATABASE_URL.split('@')[0]}@*****")
 
     db_config = Config.get_db_config()
