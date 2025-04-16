@@ -936,6 +936,7 @@ async def process_rasch_model(message: types.Message):
         result_path = f'rasch_{test_id}_natijalar.xlsx'
 
         df = df.sort_values(by='Ball', ascending=False)
+        df['№'] = range(1, len(df) + 1)
         df[result_cols].to_excel(result_path, index=False, engine='openpyxl')
 
         result_file = types.FSInputFile(result_path)
