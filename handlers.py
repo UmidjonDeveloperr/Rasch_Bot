@@ -865,7 +865,7 @@ async def process_rasch_model(message: types.Message):
 
     test_id = message.text.strip().lower()
 
-    await message.answer("Test natijalari analiz qilinyapti...")
+    processing_msg_rasch = await message.answer("Test natijalari analiz qilinyapti...")
 
 
     try:
@@ -939,6 +939,8 @@ async def process_rasch_model(message: types.Message):
         df['№'] = range(1, len(df) + 1)
         df[result_cols].to_excel(result_path, index=False, engine='openpyxl')
 
+        await processing_msg_rasch.delete()
+
         result_file = types.FSInputFile(result_path)
         await message.answer_document(
             document=result_file,
@@ -969,7 +971,7 @@ async def process_rasch_model(message: types.Message):
 @router.message(F.text == "📝 Test ishlash")
 async def start_test(message: Message, state: FSMContext):
     telegram_id = message.from_user.id
-    url = f"https://flashy-diligent-streetcar.glitch.me/math.html?telegram_id={telegram_id}"
+    url = f"https://exam-elf.web.app?telegram_id={telegram_id}"
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
