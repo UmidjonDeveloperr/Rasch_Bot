@@ -5,3 +5,7 @@ sympy
 pydantic
 asyncpg
 XlsxWriter
+numpy
+openpyxl
+scipy
+numba

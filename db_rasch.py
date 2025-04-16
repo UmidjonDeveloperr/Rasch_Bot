@@ -11,6 +11,8 @@ from config import DB_CONFIG  # Your database configuration
 import pandas as pd
 from io import BytesIO
 
+from utils import is_expression_equal
+
 logger = logging.getLogger(__name__)
 
 
@@ -335,19 +337,28 @@ class TestManager:
 
     @staticmethod
     async def delete_test(test_id: str) -> bool:
-        """Delete a test by test_id"""
+        """Delete a test by test_id and drop related answers table"""
+        table_name = f"test_{test_id.lower()}_answers"
         pool = await Database.get_pool()
+
         try:
             async with pool.acquire() as conn:
+                # Drop related answers table if it exists
+                await conn.execute(
+                    f'DROP TABLE IF EXISTS "{table_name}" CASCADE'
+                )
+
+                # Then delete the test entry
                 result = await conn.execute(
                     'DELETE FROM tests WHERE test_id = $1 RETURNING id',
                     test_id
                 )
-                return bool(result)
-        except Exception as e:
-            logger.error(f"Error deleting test {test_id}: {e}")
-            raise
 
+                return bool(result)
+
+        except Exception as e:
+            logger.error(f"Error deleting test {test_id} and dropping table {table_name}: {e}")
+            raise
 
 
     @staticmethod
@@ -586,6 +597,7 @@ class TestManager:
             raise ValueError("Test not found")
 
         correct_answers = test['answers_1_35']
+        correct_36_45 = test['answers_36_45']
 
         # Get all user answers
         table_name = f"test_{test_id.lower()}_answers"
@@ -602,33 +614,58 @@ class TestManager:
 
             # Get all user data
             records = await conn.fetch(f"""
-                SELECT first_name, second_name, third_name, region, answers
-                FROM {table_name}
-                ORDER BY second_name, first_name
-            """)
+                       SELECT firstname, secondname, thirdname, region, answers_1_35, answers_36_45
+                       FROM {table_name}
+                       ORDER BY secondname, firstname
+                   """)
 
         # Process data for Excel - collect ALL users first
         data = []
         count = 1
         for record in records:
-            user_answers = json.loads(record['answers'])
+            user_answers = (record.get('answers_1_35') or "").strip()
+            # user_math_answers = json.loads(record['answers_36_45'])  # dict of math answers
+            try:
+                raw_math_answers = record.get('answers_36_45', '{}')  # Default to empty dict
+                user_math_answers = json.loads(raw_math_answers) if raw_math_answers.strip() else {}
+            except (json.JSONDecodeError, TypeError) as e:
+                logger.error(f"Invalid JSON in answers_36_45 for user {record.get('secondname', 'unknown')}: {e}")
+                user_math_answers = {}
+
             row = {
                 '№': count,
-                'F.I.O': record['first_name'] + ' ' + record['second_name'] + ' ' + record['third_name'] + ' ' + '(' + record['region'] + ')',
-                'Duris': 7
+                'F.I.O': f"{record['firstname']} {record['secondname']} {record['thirdname']} ({record['region']})"
             }
             count += 1
-            # Add 1/0 for each question
+
+            # Binary for 1–35
             for i in range(len(user_answers)):
                 question_num = i + 1
                 is_correct = (i < len(correct_answers)) and (user_answers[i].upper() == correct_answers[i].upper())
-                row[f"{question_num}"] = 1 if is_correct else 0
+                row[str(question_num)] = 1 if is_correct else 0
+
+            # Binary for 36–45 (a and b)
+            for q in range(36, 46):
+                q_str = str(q)
+                for part in ['a', 'b']:
+                    user_latex = user_math_answers.get(q_str, {}).get(part, "")
+                    correct_expr = correct_36_45.get(q_str, {}).get(part, "")
+
+                    if not user_latex.strip():
+                        result = 0
+                    else:
+                        result = 1 if is_expression_equal(user_latex, correct_expr) else 0
+
+                    row[f"{q}{part}"] = result
 
             data.append(row)
 
-        # Create DataFrame after collecting ALL users
+            # Create DataFrame
         df = pd.DataFrame(data)
-        cols = ['№'] + ['F.I.O'] + ['Duris'] + [f"{i + 1}" for i in range(len(correct_answers))]
+
+        # Define column order
+        cols = ['№', 'F.I.O'] + [str(i + 1) for i in range(len(correct_answers))] + \
+               [f"{q}{part}" for q in range(36, 46) for part in ['a', 'b']]
         df = df[cols]
 
         # Create Excel file in memory
@@ -636,14 +673,101 @@ class TestManager:
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             df.to_excel(writer, index=False, sheet_name='Natijalar')
 
-            # Auto-adjust columns' width
+            # Auto-adjust column widths
             worksheet = writer.sheets['Natijalar']
             for i, col in enumerate(df.columns):
                 max_len = max(df[col].astype(str).map(len).max(), len(col)) + 2
                 worksheet.set_column(i, i, max_len)
 
         output.seek(0)
-        return BufferedInputFile(output.getvalue(), filename=f"test_{test_id}_results.xlsx")
+        return BufferedInputFile(file=output.getvalue(), filename=f"test_{test_id}_natijalar.xlsx")
+
+    @staticmethod
+    async def export_df_results(test_id: str) -> BufferedInputFile:
+        """
+        Export test results to Excel file with 1/0 scoring
+        Returns InputFile ready to be sent via Telegram
+        """
+        # Get test correct answers
+        test = await TestManager.get_test(test_id)
+        if not test:
+            raise ValueError("Test not found")
+
+        correct_answers = test['answers_1_35']
+        correct_36_45 = test['answers_36_45']
+
+        # Get all user answers
+        table_name = f"test_{test_id.lower()}_answers"
+        pool = await Database.get_pool()
+
+        async with pool.acquire() as conn:
+            # Check if table exists
+            exists = await conn.fetchval(
+                "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = $1)",
+                table_name
+            )
+            if not exists:
+                raise ValueError("No submissions for this test yet")
+
+            # Get all user data
+            records = await conn.fetch(f"""
+                           SELECT firstname, secondname, thirdname, region, answers_1_35, answers_36_45
+                           FROM {table_name}
+                           ORDER BY secondname, firstname
+                       """)
+
+        # Process data for Excel - collect ALL users first
+        data = []
+        count = 1
+        for record in records:
+            user_answers = (record.get('answers_1_35') or "").strip()
+            # user_math_answers = json.loads(record['answers_36_45'])  # dict of math answers
+            try:
+                raw_math_answers = record.get('answers_36_45', '{}')  # Default to empty dict
+                user_math_answers = json.loads(raw_math_answers) if raw_math_answers.strip() else {}
+            except (json.JSONDecodeError, TypeError) as e:
+                logger.error(f"Invalid JSON in answers_36_45 for user {record.get('secondname', 'unknown')}: {e}")
+                user_math_answers = {}
+
+            row = {
+                '№': count,
+                'F.I.O': f"{record['firstname']} {record['secondname']} {record['thirdname']} ({record['region']})",
+                'Duris': 7
+            }
+            count += 1
+
+            # Binary for 1–35
+            for i in range(len(user_answers)):
+                question_num = i + 1
+                is_correct = (i < len(correct_answers)) and (user_answers[i].upper() == correct_answers[i].upper())
+                row[str(question_num)] = 1 if is_correct else 0
+
+            # Binary for 36–45 (a and b)
+            for q in range(36, 46):
+                q_str = str(q)
+                for part in ['a', 'b']:
+                    user_latex = user_math_answers.get(q_str, {}).get(part, "")
+                    correct_expr = correct_36_45.get(q_str, {}).get(part, "")
+
+                    if not user_latex.strip():
+                        result = 0
+                    else:
+                        result = 1 if is_expression_equal(user_latex, correct_expr) else 0
+
+                    row[f"{q}{part}"] = result
+
+            data.append(row)
+
+            # Create DataFrame
+        df = pd.DataFrame(data)
+
+        # Define column order
+        cols = ['№', 'F.I.O', 'Duris'] + [str(i + 1) for i in range(len(correct_answers))] + \
+               [f"{q}{part}" for q in range(36, 46) for part in ['a', 'b']]
+        df = df[cols]
+
+        return df
+
 # Initialize tables when module is imported
 async def initialize_db():
     try:

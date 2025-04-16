@@ -1,17 +1,13 @@
+import logging
 import os
 from io import BytesIO
+import numpy as np
 import pandas as pd
-from aiogram import Router, types, F
+from aiogram import Router
 from aiogram import types, F
-from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, ReplyKeyboardRemove, WebAppInfo, WebAppData
-from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.filters import Command, StateFilter
+from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
-from aiogram.utils.keyboard import ReplyKeyboardBuilder, InlineKeyboardBuilder
-from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup
 from aiogram.types import (
     FSInputFile,
     ReplyKeyboardMarkup,
@@ -21,21 +17,10 @@ from aiogram.types import (
     Message
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
-from typing import Union
-import json
-import pandas as pd
-from io import BytesIO
-from aiogram.types import InputFile
-
-
-from pydantic import BaseModel
-from sympy.physics.units import current
-
-from db_rasch import TestManager  # Your database operations
-from config import Config  # For configuration
-from datetime import datetime
+from scipy.stats import zscore
+from FastRaschModel import FastRaschModel
 from config import ADMIN_IDS
-import logging
+from db_rasch import TestManager  # Your database operations
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -48,6 +33,7 @@ def is_admin(user_id: int):
 class TestStates(StatesGroup):
     waiting_for_test_data = State()
     waiting_for_test_id = State()
+    waiting_for_test_id_rasch = State()
 
 
 class AddTestStates(StatesGroup):
@@ -217,7 +203,7 @@ async def receive_single_test(message: Message, state: FSMContext):
             raise ValueError("Format not valid")
 
         test_id, answers = message.text.split(":", 1)
-        test_id = test_id.strip()
+        test_id = test_id.strip().lower()
         answers = answers.strip()
 
         parts = answers.split()
@@ -276,7 +262,7 @@ async def receive_excel_file(message: Message, state: FSMContext):
 
         tests = []
         for _, row in df.iterrows():
-            test_id = str(row[0])
+            test_id = str(row[0]).lower()
             answers_1_35 = str(row[1]).upper()
 
             # Validate Q1-35
@@ -480,7 +466,7 @@ async def delete_test_command(message: types.Message, state: FSMContext):
 
 @router.message(DeleteTestStates.waiting_for_test_id, F.text)
 async def process_test_id_for_deletion(message: types.Message, state: FSMContext):
-    test_id = message.text.strip()
+    test_id = message.text.strip().lower()
 
     # First check if test exists
     test_exists = await TestManager.get_test(test_id)
@@ -576,7 +562,7 @@ async def edit_test_command(message: types.Message, state: FSMContext):
 
 @router.message(EditTestStates.waiting_for_test_id, F.text)
 async def process_test_id_for_edit(message: types.Message, state: FSMContext):
-    test_id = message.text.strip()
+    test_id = message.text.strip().lower()
 
     test = await TestManager.get_test(test_id)
     if not test:
@@ -835,7 +821,7 @@ async def request_test_id(message: Message, state: FSMContext):
 
 @router.message(TestStates.waiting_for_test_id, F.text)
 async def process_export(message: Message, state: FSMContext):
-    test_id = message.text.strip()
+    test_id = message.text.strip().lower()
 
     try:
         # Show loading message
@@ -859,6 +845,123 @@ async def process_export(message: Message, state: FSMContext):
     finally:
         await state.clear()
 
+@router.message(F.text == "Rasch Result")
+async def request_rasch_test_id(message: Message, state: FSMContext):
+    if not is_admin(message.from_user.id):
+        await message.answer("❌ Sizda bunday huquq yo'q!")
+        return
+
+    await state.set_state(TestStates.waiting_for_test_id_rasch)
+    await message.answer(
+        "📝 Rasch natijalarini olish uchun test ID sini yuboring:",
+        reply_markup=types.ReplyKeyboardRemove()
+    )
+
+
+@router.message(TestStates.waiting_for_test_id_rasch, F.text)
+async def process_rasch_model(message: types.Message):
+    if not is_admin(message.from_user.id):
+        return await message.answer("❌ Siz admin emassiz!\n Shuning uchun bizning botdan foydalana olmaysiz!")
+
+    test_id = message.text.strip().lower()
+
+    await message.answer("Test natijalari analiz qilinyapti...")
+
+
+    try:
+        print("Loading data...")
+
+        df = await TestManager.export_df_results(test_id)
+
+        print(f"Data loaded successfully with {len(df)} rows")
+        print("Faylda mavjud ustunlar:", df.columns.tolist())
+
+        # Agar ustun nomlari boshqacha bo'lsa, ularni moslashtiring
+        required_columns = ['№', 'F.I.O.', 'Duris']
+        available_columns = df.columns.tolist()
+
+        # Ustun nomlarini tekshirish va moslashtirish
+        if not all(col in available_columns for col in required_columns):
+            # Agar standart nomlar topilmasa, birinchi 3 ustundan foydalaning
+            if len(df.columns) >= 3:
+                df.columns = ['№', 'F.I.O.', 'Duris'] + list(df.columns[3:])
+                print("Ustun nomlari avtomatik moslashtirildi")
+            else:
+                raise ValueError("Faylda kamida 3 ta ustun bo'lishi kerak")
+
+        # Column handling
+        if len(df.columns) < 3:
+            raise ValueError("File must have at least 3 columns")
+
+        # Auto-detect response columns (assuming they start from column 3)
+        response_cols = df.columns[3:]
+        print(f"Detected {len(response_cols)} response columns")
+
+        # Convert responses to binary (1 for correct, 0 for incorrect)
+        response_data = df[response_cols].applymap(lambda x: 1 if x == 1 else 0)
+
+        # Fit Rasch model with progress tracking
+        print("Fitting Rasch model...")
+        model = FastRaschModel()
+        model.fit(response_data)
+
+        # Calculate scores
+        print("Calculating scores...")
+        df['Theta'] = model.person_ability
+        df['Ball'] = 50 + 10 * zscore(df['Theta'])
+        df['Ball'] = np.round(df['Ball'], 2)
+        # Determine subject type based on max possible score
+        max_possible = len(response_cols)
+        subject_type = "1-fan" if max_possible >= 45 else "2-fan"
+
+        # Calculate proportional scores
+        theta_min = df['Theta'].min()
+        theta_range = df['Theta'].max() - theta_min
+        if theta_range > 0:
+            df['Prop_Score'] = ((df['Theta'] - theta_min) / theta_range) * (max_possible - 65) + 65
+        else:
+            df['Prop_Score'] = 65  # Handle case where all abilities are equal
+
+        # Assign grades
+        bins = [0, 46, 50, 55, 60, 65, 70, 93]
+        labels = ['NC', 'C', 'C+', 'B', 'B+', 'A', 'A+']
+        df['Daraja'] = pd.cut(df['Ball'], bins=bins, labels=labels, right=False)
+
+        # Save results
+        result_cols = ['№', 'F.I.O.', 'Ball', 'Daraja']
+        if '№' not in df.columns:
+            result_cols = [col for col in result_cols if col != '№']
+
+        print("Saving results...")
+        result_path = f'rasch_{test_id}_natijalar.xlsx'
+
+        df = df.sort_values(by='Ball', ascending=False)
+        df[result_cols].to_excel(result_path, index=False, engine='openpyxl')
+
+        result_file = types.FSInputFile(result_path)
+        await message.answer_document(
+            document=result_file,
+            caption=f'Rasch analiz tugadi!',
+            reply_markup=get_admin_keyboard()
+        )
+
+    except ValueError as e:
+        if "At least one sheet must be visible" in str(e):
+            await message.answer(
+                "Error: The Excel file has no visible sheets. Please ensure at least one sheet is visible and contains data."
+            )
+        else:
+            print(f"Error: {str(e)}")
+            await message.answer(f"Error processing file: {str(e)}")
+    except Exception as e:
+        print(f"Error processing file: {str(e)}")
+        await message.answer(f"Error processing file: {str(e)}")
+    finally:
+        if 'result_path' in locals() and os.path.exists(result_path):
+            os.remove(result_path)
+
+
+
 
 #####---------------------------USER--------------------------------------------
 #start handler
@@ -874,6 +977,49 @@ async def start_test(message: Message, state: FSMContext):
     )
 
     await message.answer("Testni shu yerda boshlang:", reply_markup=keyboard)
+
+
+
+@router.message()
+async def handle_unknown_messages(message: types.Message, state: FSMContext):
+    current_state = await state.get_state()
+
+    # If in specific state, give state-specific guidance
+    if current_state == AddTestStates.waiting_for_single_test_data:
+        await message.answer(
+            "❌ Noto'g'ri format!\n\n"
+            "Iltimos, quyidagi formatda yuboring:\n"
+            "<code>test_id:javoblar</code>\n\n"
+            "Misol: <code>12345:abcdeabcdabcdeabcdabcde</code>",
+            reply_markup=InlineKeyboardBuilder()
+            .add(InlineKeyboardButton(text="🔙 Orqaga", callback_data="input_error_back"))
+            .as_markup()
+        )
+    elif current_state == AddTestStates.waiting_for_excel_file:
+        await message.answer(
+            "❌ Noto'g'ri fayl formati!\n\n"
+            "Iltimos, .xlsx yoki .xls formatidagi fayl yuboring.",
+            reply_markup=InlineKeyboardBuilder()
+            .add(InlineKeyboardButton(text="🔙 Orqaga", callback_data="input_error_back"))
+            .as_markup()
+        )
+    # Default message for all other cases
+    else:
+        if is_admin(message.from_user.id):
+            await message.answer(
+                "❌ Noto'g'ri buyruq!\n\n"
+                "Iltimos, quyidagilardan birini tanlang:",
+                reply_markup=get_admin_keyboard()
+            )
+        else:
+            await message.answer(
+                "❌ Noto'g'ri buyruq!\n\n"
+                "Test ishlash uchun quyidagi tugmani bosing:",
+                reply_markup=get_user_keyboard()
+            )
+
+
+
 
 
 
@@ -1197,48 +1343,3 @@ async def start_test(message: Message, state: FSMContext):
 #         ],
 #         resize_keyboard=True
 #     )
-
-
-
-
-
-
-
-
-@router.message()
-async def handle_unknown_messages(message: types.Message, state: FSMContext):
-    current_state = await state.get_state()
-
-    # If in specific state, give state-specific guidance
-    if current_state == AddTestStates.waiting_for_single_test_data:
-        await message.answer(
-            "❌ Noto'g'ri format!\n\n"
-            "Iltimos, quyidagi formatda yuboring:\n"
-            "<code>test_id:javoblar</code>\n\n"
-            "Misol: <code>12345:abcdeabcdabcdeabcdabcde</code>",
-            reply_markup=InlineKeyboardBuilder()
-            .add(InlineKeyboardButton(text="🔙 Orqaga", callback_data="input_error_back"))
-            .as_markup()
-        )
-    elif current_state == AddTestStates.waiting_for_excel_file:
-        await message.answer(
-            "❌ Noto'g'ri fayl formati!\n\n"
-            "Iltimos, .xlsx yoki .xls formatidagi fayl yuboring.",
-            reply_markup=InlineKeyboardBuilder()
-            .add(InlineKeyboardButton(text="🔙 Orqaga", callback_data="input_error_back"))
-            .as_markup()
-        )
-    # Default message for all other cases
-    else:
-        if is_admin(message.from_user.id):
-            await message.answer(
-                "❌ Noto'g'ri buyruq!\n\n"
-                "Iltimos, quyidagilardan birini tanlang:",
-                reply_markup=get_admin_keyboard()
-            )
-        else:
-            await message.answer(
-                "❌ Noto'g'ri buyruq!\n\n"
-                "Test ishlash uchun quyidagi tugmani bosing:",
-                reply_markup=get_user_keyboard()
-            )
