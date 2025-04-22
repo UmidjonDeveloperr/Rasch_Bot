@@ -910,6 +910,10 @@ async def process_rasch_model(message: types.Message):
         df['Theta'] = model.person_ability
         df['Ball'] = 50 + 10 * zscore(df['Theta'])
         df['Ball'] = np.round(df['Ball'], 2)
+
+        df['Ball'] = df['Ball'] + np.random.uniform(-0.5, 0.5, size=len(df['Ball']))
+        df['Ball'] = df['Ball'].round(decimals=2)
+
         # Determine subject type based on max possible score
         max_possible = len(response_cols)
         subject_type = "1-fan" if max_possible >= 45 else "2-fan"
