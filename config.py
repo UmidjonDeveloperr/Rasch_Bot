@@ -37,11 +37,11 @@ class Config:
         else:
             # Fallback configuration with your Railway credentials
             return {
-                'user': "postgres",
-                'password': "UNujKLBAAGIFskpCjWCjCMpVDDaURvnc",
-                'database': "railway",
-                'host': "monorail.proxy.rlwy.net",  # Use external hostname
-                'port': 12345  # Use your actual external port
+                'user': "rasch_db_user",
+                'password': "LS6dcsjXWwNDJnjAeLSWpUd1ET3hGhXs",
+                'database': "rasch_db",
+                'host': "dpg-d03mhthr0fns73cjtncg-a",  # Use external hostname
+                'port': 5432  # Use your actual external port
             }
 
 ADMIN_IDS = Config.ADMIN_IDS
