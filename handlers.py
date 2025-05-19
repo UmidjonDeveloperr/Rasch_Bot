@@ -93,6 +93,21 @@ def get_user_keyboard() -> ReplyKeyboardMarkup:
 @router.message(Command("start"))
 async def start_command(message: types.Message):
     try:
+        user_id = message.from_user.id
+        channel_username = '@matematikadanonlinetestlar'  # masalan: '@mychannel'
+
+        try:
+            member = await message.bot.get_chat_member(channel_username, user_id)
+            if member.status not in ("member", "administrator", "creator"):
+                invite_link = f"https://t.me/{channel_username.lstrip('@')}"
+                await message.answer(
+                    f"Botdan foydalanishdan oldin quyidagi kanalga a'zo bo'lishingiz kerak:\n\n👉 {invite_link}\n\nA'zo bo‘lgach, /start buyrug'ini qayta yuboring."
+                )
+                return
+        except Exception as e:
+            await message.answer("A'zolikni tekshirib bo‘lmadi. Iltimos, keyinroq urinib ko‘ring.")
+            return
+
         photo_path = "images/welcometc.PNG"
         if not os.path.exists(photo_path):
             raise FileNotFoundError(f"Rasm topilmadi: {photo_path}")
