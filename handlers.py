@@ -173,6 +173,21 @@ def get_max_grade_keyboard() -> InlineKeyboardMarkup:
 # Start test addition
 @router.message(F.text == "➕ Test qo'shish")
 async def add_test_command(message: types.Message, state: FSMContext):
+    user_id = message.from_user.id
+    channel_username = '@matematikadanonlinetestlar'  # masalan: '@mychannel'
+
+    try:
+        member = await message.bot.get_chat_member(channel_username, user_id)
+        if member.status not in ("member", "administrator", "creator"):
+            invite_link = f"https://t.me/{channel_username.lstrip('@')}"
+            await message.answer(
+                f"Botdan foydalanishdan oldin quyidagi kanalga a'zo bo'lishingiz kerak:\n\n👉 {invite_link}\n\nA'zo bo‘lgach, /start buyrug'ini qayta yuboring."
+            )
+            return
+    except Exception as e:
+        await message.answer(f"A'zolikni tekshirib bo‘lmadi. Iltimos, keyinroq urinib ko‘ring.")
+        return
+
     if not is_admin(message.from_user.id):
         return await message.answer("Siz admin emassiz!")
 
@@ -469,6 +484,21 @@ async def process_max_grade(callback: CallbackQuery, state: FSMContext, path_typ
 
 @router.message(F.text == "🗑 Test o'chirish")
 async def delete_test_command(message: types.Message, state: FSMContext):
+    user_id = message.from_user.id
+    channel_username = '@matematikadanonlinetestlar'  # masalan: '@mychannel'
+
+    try:
+        member = await message.bot.get_chat_member(channel_username, user_id)
+        if member.status not in ("member", "administrator", "creator"):
+            invite_link = f"https://t.me/{channel_username.lstrip('@')}"
+            await message.answer(
+                f"Botdan foydalanishdan oldin quyidagi kanalga a'zo bo'lishingiz kerak:\n\n👉 {invite_link}\n\nA'zo bo‘lgach, /start buyrug'ini qayta yuboring."
+            )
+            return
+    except Exception as e:
+        await message.answer(f"A'zolikni tekshirib bo‘lmadi. Iltimos, keyinroq urinib ko‘ring.")
+        return
+
     if not is_admin(message.from_user.id):
         return await message.answer("Siz admin emassiz!")
 
@@ -565,6 +595,21 @@ async def cancel_deletion(callback: CallbackQuery, state: FSMContext):
 
 @router.message(F.text == "Edit")
 async def edit_test_command(message: types.Message, state: FSMContext):
+    user_id = message.from_user.id
+    channel_username = '@matematikadanonlinetestlar'  # masalan: '@mychannel'
+
+    try:
+        member = await message.bot.get_chat_member(channel_username, user_id)
+        if member.status not in ("member", "administrator", "creator"):
+            invite_link = f"https://t.me/{channel_username.lstrip('@')}"
+            await message.answer(
+                f"Botdan foydalanishdan oldin quyidagi kanalga a'zo bo'lishingiz kerak:\n\n👉 {invite_link}\n\nA'zo bo‘lgach, /start buyrug'ini qayta yuboring."
+            )
+            return
+    except Exception as e:
+        await message.answer(f"A'zolikni tekshirib bo‘lmadi. Iltimos, keyinroq urinib ko‘ring.")
+        return
+
     if not is_admin(message.from_user.id):
         return await message.answer("Siz admin emassiz!")
 
@@ -787,6 +832,21 @@ async def show_edit_options_after_update(update: types.Message | types.CallbackQ
 
 @router.message(F.text == "📜 Barcha testlar")
 async def list_all_tests(message: types.Message):
+    user_id = message.from_user.id
+    channel_username = '@matematikadanonlinetestlar'  # masalan: '@mychannel'
+
+    try:
+        member = await message.bot.get_chat_member(channel_username, user_id)
+        if member.status not in ("member", "administrator", "creator"):
+            invite_link = f"https://t.me/{channel_username.lstrip('@')}"
+            await message.answer(
+                f"Botdan foydalanishdan oldin quyidagi kanalga a'zo bo'lishingiz kerak:\n\n👉 {invite_link}\n\nA'zo bo‘lgach, /start buyrug'ini qayta yuboring."
+            )
+            return
+    except Exception as e:
+        await message.answer(f"A'zolikni tekshirib bo‘lmadi. Iltimos, keyinroq urinib ko‘ring.")
+        return
+
     if not is_admin(message.from_user.id):
         return await message.answer("Siz admin emassiz!")
 
@@ -823,6 +883,21 @@ async def list_all_tests(message: types.Message):
 
 @router.message(F.text == "Export Results")
 async def request_test_id(message: Message, state: FSMContext):
+    user_id = message.from_user.id
+    channel_username = '@matematikadanonlinetestlar'  # masalan: '@mychannel'
+
+    try:
+        member = await message.bot.get_chat_member(channel_username, user_id)
+        if member.status not in ("member", "administrator", "creator"):
+            invite_link = f"https://t.me/{channel_username.lstrip('@')}"
+            await message.answer(
+                f"Botdan foydalanishdan oldin quyidagi kanalga a'zo bo'lishingiz kerak:\n\n👉 {invite_link}\n\nA'zo bo‘lgach, /start buyrug'ini qayta yuboring."
+            )
+            return
+    except Exception as e:
+        await message.answer(f"A'zolikni tekshirib bo‘lmadi. Iltimos, keyinroq urinib ko‘ring.")
+        return
+
     if not is_admin(message.from_user.id):
         await message.answer("❌ Sizda bunday huquq yo'q!")
         return
@@ -862,6 +937,21 @@ async def process_export(message: Message, state: FSMContext):
 
 @router.message(F.text == "Rasch Result")
 async def request_rasch_test_id(message: Message, state: FSMContext):
+    user_id = message.from_user.id
+    channel_username = '@matematikadanonlinetestlar'  # masalan: '@mychannel'
+
+    try:
+        member = await message.bot.get_chat_member(channel_username, user_id)
+        if member.status not in ("member", "administrator", "creator"):
+            invite_link = f"https://t.me/{channel_username.lstrip('@')}"
+            await message.answer(
+                f"Botdan foydalanishdan oldin quyidagi kanalga a'zo bo'lishingiz kerak:\n\n👉 {invite_link}\n\nA'zo bo‘lgach, /start buyrug'ini qayta yuboring."
+            )
+            return
+    except Exception as e:
+        await message.answer(f"A'zolikni tekshirib bo‘lmadi. Iltimos, keyinroq urinib ko‘ring.")
+        return
+
     if not is_admin(message.from_user.id):
         await message.answer("❌ Sizda bunday huquq yo'q!")
         return
@@ -989,6 +1079,21 @@ async def process_rasch_model(message: types.Message):
 #start handler
 @router.message(F.text == "📝 Test ishlash")
 async def start_test(message: Message, state: FSMContext):
+    user_id = message.from_user.id
+    channel_username = '@matematikadanonlinetestlar'  # masalan: '@mychannel'
+
+    try:
+        member = await message.bot.get_chat_member(channel_username, user_id)
+        if member.status not in ("member", "administrator", "creator"):
+            invite_link = f"https://t.me/{channel_username.lstrip('@')}"
+            await message.answer(
+                f"Botdan foydalanishdan oldin quyidagi kanalga a'zo bo'lishingiz kerak:\n\n👉 {invite_link}\n\nA'zo bo‘lgach, /start buyrug'ini qayta yuboring."
+            )
+            return
+    except Exception as e:
+        await message.answer(f"A'zolikni tekshirib bo‘lmadi. Iltimos, keyinroq urinib ko‘ring.")
+        return
+
     telegram_id = message.from_user.id
     url = f"https://exam-elf.web.app?telegram_id={telegram_id}"
 
@@ -1004,6 +1109,21 @@ async def start_test(message: Message, state: FSMContext):
 
 @router.message()
 async def handle_unknown_messages(message: types.Message, state: FSMContext):
+    user_id = message.from_user.id
+    channel_username = '@matematikadanonlinetestlar'  # masalan: '@mychannel'
+
+    try:
+        member = await message.bot.get_chat_member(channel_username, user_id)
+        if member.status not in ("member", "administrator", "creator"):
+            invite_link = f"https://t.me/{channel_username.lstrip('@')}"
+            await message.answer(
+                f"Botdan foydalanishdan oldin quyidagi kanalga a'zo bo'lishingiz kerak:\n\n👉 {invite_link}\n\nA'zo bo‘lgach, /start buyrug'ini qayta yuboring."
+            )
+            return
+    except Exception as e:
+        await message.answer(f"A'zolikni tekshirib bo‘lmadi. Iltimos, keyinroq urinib ko‘ring.")
+        return
+
     current_state = await state.get_state()
 
     # If in specific state, give state-specific guidance
