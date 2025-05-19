@@ -105,7 +105,7 @@ async def start_command(message: types.Message):
                 )
                 return
         except Exception as e:
-            await message.answer("A'zolikni tekshirib bo‘lmadi. Iltimos, keyinroq urinib ko‘ring.")
+            await message.answer(f"A'zolikni tekshirib bo‘lmadi. Iltimos, keyinroq urinib ko‘ring.{e}")
             return
 
         photo_path = "images/welcometc.PNG"
