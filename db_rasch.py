@@ -242,21 +242,21 @@ class TestManager:
             logger.error(f"Error fetching test {test_id}: {e}")
             raise
 
-    @staticmethod
-    async def get_all_tests(limit: int = 100) -> List[dict]:
-        """Retrieve all tests from database"""
-        pool = await Database.get_pool()
-        try:
-            async with pool.acquire() as conn:
-                records = await conn.fetch(
-                    'SELECT test_id, answers, status, max_grade, created_at '
-                    'FROM tests ORDER BY created_at DESC LIMIT $1',
-                    limit
-                )
-                return [dict(r) for r in records]
-        except Exception as e:
-            logger.error(f"Error getting all tests: {e}")
-            return []
+    # @staticmethod
+    # async def get_all_tests(limit: int = 100) -> List[dict]:
+    #     """Retrieve all tests from database"""
+    #     pool = await Database.get_pool()
+    #     try:
+    #         async with pool.acquire() as conn:
+    #             records = await conn.fetch(
+    #                 'SELECT test_id, answers, status, max_grade, created_at '
+    #                 'FROM tests ORDER BY created_at DESC LIMIT $1',
+    #                 limit
+    #             )
+    #             return [dict(r) for r in records]
+    #     except Exception as e:
+    #         logger.error(f"Error getting all tests: {e}")
+    #         return []
 
     @staticmethod
     async def get_all_tests(limit: int = 100) -> List[dict]:
@@ -273,21 +273,52 @@ class TestManager:
                     limit
                 )
 
+                # tests = []
+                # for r in records:
+                #     test = dict(r)
+                #     # Combine answers for backward compatibility
+                #     test['answers'] = (
+                #             test['answers_1_35'] + ";" +
+                #             ";".join(
+                #                 f"{v['a']};{v['b']}"
+                #                 for k, v in sorted(
+                #                     json.loads(test['answers_36_45']).items(),
+                #                     key=lambda x: int(x[0])
+                #                 )
+                #             )
+                #     )
+                #     tests.append(test)
+
                 tests = []
                 for r in records:
                     test = dict(r)
-                    # Combine answers for backward compatibility
-                    test['answers'] = (
-                            test['answers_1_35'] + ";" +
-                            ";".join(
-                                f"{v['a']};{v['b']}"
-                                for k, v in sorted(
-                                    json.loads(test['answers_36_45']).items(),
-                                    key=lambda x: int(x[0])
+
+                    raw_36_45 = test['answers_36_45']
+                    try:
+                        if isinstance(raw_36_45, str):
+                            answers_36_45 = json.loads(raw_36_45)
+                        elif isinstance(raw_36_45, dict):
+                            answers_36_45 = raw_36_45
+                        else:
+                            answers_36_45 = {}
+                    except Exception as e:
+                        logger.error(f"Invalid answers_36_45: {raw_36_45} — {e}")
+                        answers_36_45 = {}
+
+                    try:
+                        test['answers'] = (
+                                test['answers_1_35'] + ";" +
+                                ";".join(
+                                    f"{v['a']};{v['b']}"
+                                    for k, v in sorted(answers_36_45.items(), key=lambda x: int(x[0]))
                                 )
-                            )
-                    )
+                        )
+                    except Exception as e:
+                        logger.error(f"Error formatting answers: {e}")
+                        test['answers'] = test['answers_1_35']
+
                     tests.append(test)
+
                 return tests
 
         except Exception as e:
